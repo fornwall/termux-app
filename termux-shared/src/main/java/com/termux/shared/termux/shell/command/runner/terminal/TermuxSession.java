@@ -1,6 +1,8 @@
 package com.termux.shared.termux.shell.command.runner.terminal;
 
 import android.content.Context;
+import android.os.Build;
+import android.os.Process;
 import android.system.OsConstants;
 
 import androidx.annotation.NonNull;
@@ -16,6 +18,7 @@ import com.termux.shared.errors.Errno;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.shell.command.environment.IShellEnvironment;
 import com.termux.shared.shell.ShellUtils;
+import com.termux.shared.termux.TermuxConstants;
 import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TerminalSessionClient;
 
@@ -129,6 +132,21 @@ public class TermuxSession {
         if (commandArgs.length > 1) System.arraycopy(commandArgs, 1, arguments, 1, commandArgs.length - 1);
 
         executionCommand.arguments = arguments;
+
+        if (!executionCommand.isFailsafe && android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Cannot execute written files directly on Android 10 or later.
+            String wrappedExecutable = executionCommand.executable;
+            executionCommand.executable = "/system/bin/linker" + (Process.is64Bit() ? "64" : "");
+
+            String[] origArguments = arguments;
+            arguments = new String[commandArgs.length + 2];
+            arguments[0] = processName;
+            arguments[1] = TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + "/sh";
+            arguments[2] = wrappedExecutable;
+            if (origArguments.length > 1)
+                System.arraycopy(origArguments, 1, arguments, 3, origArguments.length - 1);
+            executionCommand.arguments = arguments;
+        }
 
         if (executionCommand.commandLabel == null)
             executionCommand.commandLabel = processName;
